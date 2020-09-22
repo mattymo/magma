@@ -27,10 +27,87 @@
 #include "3gpp_24.008.h"
 #include "common_ies.h"
 #include "feg/protos/csfb.pb.h"
+#include "lte/protos/sms_orc8r.pb.h"
 
 extern "C" {
 #include "bytes_to_ie.h"
 }
+
+namespace magma {
+using namespace lte;
+
+// SMS Orc8r Downlink
+void convert_proto_msg_to_itti_sgsap_downlink_unitdata(
+    const SMODownlinkUnitdata* msg, itti_sgsap_downlink_unitdata_t* itti_msg) {
+  auto imsi             = msg->imsi();
+  itti_msg->imsi_length = imsi.length();
+  strcpy(itti_msg->imsi, imsi.c_str());
+
+  auto nas_msg = msg->nas_message_container();
+  itti_msg->nas_msg_container =
+      bfromcstr_for_nas_msg_container(nas_msg.c_str(), nas_msg.length());
+
+  return;
+}
+
+
+/*
+ * SMS Orc8r Paging request
+ * Sent from orc8r service to page an idle mode UE for SMS transfer. Note that
+ * we rely on the caller to ensure proper paging semantics, specifically, the
+ * LAI should not be non-broadcasted. (SMS-in-MME, TS23.272 C.4.2)
+ */
+void convert_proto_msg_to_itti_sgsap_paging_request(
+    const SMOPagingRequest* msg, itti_sgsap_paging_request_t* itti_msg) {
+  auto imsi             = msg->imsi();
+  itti_msg->imsi_length = imsi.length();
+  strcpy(itti_msg->imsi, imsi.c_str());
+
+  auto service_indicator      = msg->service_indicator();
+  itti_msg->service_indicator = static_cast<uint8_t>(service_indicator[0]);
+
+  uint8_t presencemask = 0;
+  // optional fields
+  auto tmsi = msg->tmsi();
+  if (tmsi.length() != 0) {
+    presencemask = presencemask | PAGING_REQUEST_TMSI_PARAMETER_PRESENT;
+    tmsi_t itti_tmsi;
+    bytes_to_tmsi(tmsi.c_str(), &itti_tmsi);
+    itti_msg->opt_tmsi = itti_tmsi;
+  }
+
+  auto cli = msg->cli();
+  if (cli.length() != 0) {
+    presencemask = presencemask | PAGING_REQUEST_CLI_PARAMETER_PRESENT;
+
+    unsigned char* cli_char = new unsigned char[cli.length()];
+    for (int i = 0; i < cli.length(); ++i) {
+      cli_char[i] = cli[i];
+    }
+
+    tagbstring* cli_tbstr = new tagbstring();
+    cli_tbstr->mlen       = cli.length();
+    cli_tbstr->slen       = cli.length();
+    cli_tbstr->data       = cli_char;
+
+    itti_msg->opt_cli = cli_tbstr;
+  }
+
+  auto lai = msg->location_area_identifier();
+  if (lai.length() != 0) {
+    presencemask = presencemask | PAGING_REQUEST_LAI_PARAMETER_PRESENT;
+    lai_t itti_lai;
+    bytes_to_lai(lai.c_str(), &itti_lai);
+    itti_msg->opt_lai = itti_lai;
+  }
+
+  itti_msg->presencemask = presencemask;
+
+  return;
+}
+
+} // namespace magma
+
 
 namespace magma {
 using namespace feg;
