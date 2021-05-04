@@ -245,6 +245,7 @@ typedef struct emm_context_s {
   ksi_t ksi;            /*key set identifier  */
   ue_network_capability_t _ue_network_capability;
   ms_network_capability_t _ms_network_capability;
+  nr_ue_security_capability_t _nr_ue_security_capability;
   drx_parameter_t _drx_parameter;
 
   int remaining_vectors;                       // remaining unused vectors
@@ -370,6 +371,7 @@ typedef struct emm_context_s {
    */
   bool nw_init_bearer_deactv;
   new_attach_info_t* new_attach_info;
+  bool initiate_identity_after_smc;
 } emm_context_t;
 
 /*
@@ -438,11 +440,10 @@ void emm_ctx_set_valid_old_guti(emm_context_t* const ctxt, guti_t* guti)
 
 void emm_ctx_clear_imsi(emm_context_t* const ctxt) __attribute__((nonnull))
 __attribute__((nonnull)) __attribute__((flatten));
-void emm_ctx_set_imsi(
-    emm_context_t* const ctxt, imsi_t* imsi, const imsi64_t imsi64)
+void emm_ctx_set_imsi(emm_context_t* const ctxt, imsi_t* imsi, imsi64_t imsi64)
     __attribute__((nonnull)) __attribute__((flatten));
 void emm_ctx_set_valid_imsi(
-    emm_context_t* const ctxt, imsi_t* imsi, const imsi64_t imsi64)
+    emm_context_t* const ctxt, imsi_t* imsi, imsi64_t imsi64)
     __attribute__((nonnull)) __attribute__((flatten));
 
 void emm_ctx_clear_imei(emm_context_t* const ctxt) __attribute__((nonnull))

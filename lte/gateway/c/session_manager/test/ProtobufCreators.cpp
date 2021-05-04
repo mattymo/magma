@@ -12,6 +12,7 @@
  */
 
 #include "ProtobufCreators.h"
+#include "Consts.h"
 
 namespace magma {
 
@@ -84,11 +85,16 @@ void create_rule_record(
 
 void create_rule_record(
     const std::string& imsi, const std::string& ip, const std::string& rule_id,
+    uint64_t bytes_rx, uint64_t bytes_tx, uint32_t teid,
+    RuleRecord* rule_record) {
+  create_rule_record(imsi, ip, rule_id, bytes_rx, bytes_tx, rule_record);
+  rule_record->set_teid(teid);
+}
+
+void create_rule_record(
+    const std::string& imsi, const std::string& ip, const std::string& rule_id,
     uint64_t bytes_rx, uint64_t bytes_tx, RuleRecord* rule_record) {
-  rule_record->set_sid(imsi);
-  rule_record->set_rule_id(rule_id);
-  rule_record->set_bytes_rx(bytes_rx);
-  rule_record->set_bytes_tx(bytes_tx);
+  create_rule_record(imsi, rule_id, bytes_rx, bytes_tx, rule_record);
   rule_record->set_dropped_rx(0);
   rule_record->set_dropped_tx(0);
   rule_record->set_ue_ipv4(ip);
@@ -98,10 +104,7 @@ void create_rule_record(
     const std::string& imsi, const std::string& ip, const std::string& rule_id,
     uint64_t bytes_rx, uint64_t bytes_tx, uint64_t dropped_rx,
     uint64_t dropped_tx, RuleRecord* rule_record) {
-  rule_record->set_sid(imsi);
-  rule_record->set_rule_id(rule_id);
-  rule_record->set_bytes_rx(bytes_rx);
-  rule_record->set_bytes_tx(bytes_tx);
+  create_rule_record(imsi, rule_id, bytes_rx, bytes_tx, rule_record);
   rule_record->set_dropped_rx(dropped_rx);
   rule_record->set_dropped_tx(dropped_tx);
   rule_record->set_ue_ipv4(ip);
@@ -439,4 +442,22 @@ PolicyBearerBindingRequest create_policy_bearer_bind_req(
   bearer_bind_req.set_bearer_id(bearer_id);
   return bearer_bind_req;
 }
+
+UpdateTunnelIdsRequest create_update_tunnel_ids_request(
+    const std::string& imsi, const uint32_t bearer_id, const Teids teids) {
+  return create_update_tunnel_ids_request(
+      imsi, bearer_id, teids.agw_teid(), teids.enb_teid());
+}
+
+UpdateTunnelIdsRequest create_update_tunnel_ids_request(
+    const std::string& imsi, const uint32_t bearer_id, const uint32_t agw_teid,
+    const uint32_t enb_teid) {
+  UpdateTunnelIdsRequest req;
+  req.mutable_sid()->set_id(imsi);
+  req.set_bearer_id(bearer_id);
+  req.set_agw_teid(agw_teid);
+  req.set_enb_teid(enb_teid);
+  return req;
+}
+
 }  // namespace magma

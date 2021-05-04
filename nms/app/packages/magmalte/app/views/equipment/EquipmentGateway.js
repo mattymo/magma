@@ -92,6 +92,8 @@ const useStyles = makeStyles(theme => ({
   },
 }));
 
+const UPGRADE_VIEW = 'UPGRADE';
+
 export default function Gateway() {
   const classes = useStyles();
 
@@ -152,12 +154,14 @@ function GatewayTable() {
         label={`Gateways (${Object.keys(ctx.state).length})`}
         filter={() => (
           <Grid container justify="flex-end" alignItems="center" spacing={1}>
-            <Grid item>
-              <AutorefreshCheckbox
-                autorefreshEnabled={refresh}
-                onToggle={() => setRefresh(current => !current)}
-              />
-            </Grid>
+            {currentView !== UPGRADE_VIEW && (
+              <Grid item>
+                <AutorefreshCheckbox
+                  autorefreshEnabled={refresh}
+                  onToggle={() => setRefresh(current => !current)}
+                />
+              </Grid>
+            )}
             <Grid item>
               <Text variant="body3" className={classes.viewLabelText}>
                 View
@@ -393,22 +397,23 @@ function GatewayStatusTable(props: WithAlert & {refresh: boolean}) {
                     return;
                   }
 
-                    try {
-                      await gwCtx.setState(currRow.id);
-                      await patchGateway(
-                        gwCtx.state[currRow.id].device.hardware_id,
-                        {
-                          network: null,
-                        },
-                      );
-                    } catch (e) {
-                      enqueueSnackbar('failed deleting gateway ' + currRow.id, {
-                        variant: 'error',
-                      });
-                    }
-                  });
+                  try {
+                    await gwCtx.setState(currRow.id);
+                    await patchGateway(
+                      gwCtx.state[currRow.id].device.hardware_id,
+                      {
+                        network: null,
+                      },
+                    );
+                  } catch (e) {
+                    enqueueSnackbar('failed deleting gateway ' + currRow.id, {
+                      variant: 'error',
+                    });
+                  }
+                });
               },
             },
+          },
         ]}
         options={{
           actionsColumnIndex: -1,

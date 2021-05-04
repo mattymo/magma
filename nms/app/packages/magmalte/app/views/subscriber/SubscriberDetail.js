@@ -14,14 +14,17 @@
  * @format
  */
 import type {DataRows} from '../../components/DataGrid';
-import type {subscriber} from '@fbcnms/magma-api';
+import type {subscriber, subscriber_state} from '@fbcnms/magma-api';
 
+import AutorefreshCheckbox from '../../components/AutorefreshCheckbox';
 import CardTitleRow from '../../components/layout/CardTitleRow';
 import DashboardIcon from '@material-ui/icons/Dashboard';
 import DataGrid from '../../components/DataGrid';
 import EventsTable from '../../views/events/EventsTable';
 import GraphicEqIcon from '@material-ui/icons/GraphicEq';
 import Grid from '@material-ui/core/Grid';
+import LoadingFiller from '@fbcnms/ui/components/LoadingFiller';
+import MagmaV1API from '@fbcnms/magma-api/client/WebClient';
 import MyLocationIcon from '@material-ui/icons/MyLocation';
 import PersonIcon from '@material-ui/icons/Person';
 import React from 'react';
@@ -31,6 +34,7 @@ import SubscriberContext from '../../components/context/SubscriberContext';
 import SubscriberDetailConfig from './SubscriberDetailConfig';
 import TopBar from '../../components/TopBar';
 import nullthrows from '@fbcnms/util/nullthrows';
+import useMagmaAPI from '@fbcnms/ui/magma/useMagmaAPI';
 
 import {
   REFRESH_INTERVAL,
@@ -40,7 +44,8 @@ import {Redirect, Route, Switch} from 'react-router-dom';
 import {SubscriberJsonConfig} from './SubscriberDetailConfig';
 import {colors, typography} from '../../theme/default';
 import {makeStyles} from '@material-ui/styles';
-import {useContext} from 'react';
+import {useCallback, useContext, useState} from 'react';
+import {useEnqueueSnackbar} from '@fbcnms/ui/hooks/useSnackbar';
 import {useRouter} from '@fbcnms/ui/hooks';
 
 const useStyles = makeStyles(theme => ({
@@ -99,14 +104,37 @@ const useStyles = makeStyles(theme => ({
 export default function SubscriberDetail() {
   const {relativePath, relativeUrl, match} = useRouter();
   const subscriberId: string = nullthrows(match.params.subscriberId);
+  const networkId: string = nullthrows(match.params.networkId);
   const ctx = useContext(SubscriberContext);
-  // TODO: render a "Not found" component if the IMSI is not found
-  const subscriberInfo = ctx.state?.[subscriberId] || {};
+  const [subscriberConfig, setSubscriberConfig] = useState<subscriber>({});
+  const {isLoading, response: _subscriberResponse} = useMagmaAPI(
+    MagmaV1API.getLteByNetworkIdSubscribersBySubscriberId,
+    {
+      networkId: networkId,
+      subscriberId: subscriberId,
+    },
+    useCallback(
+      response => {
+        setSubscriberConfig(response);
+        if (!ctx.state[subscriberId]) {
+          ctx.setState?.('', undefined, {
+            ...ctx.state,
+            [subscriberId]: response,
+          });
+        }
+      },
+      [ctx, subscriberId],
+    ),
+  );
+  if (isLoading) {
+    return <LoadingFiller />;
+  }
 
+  const subscriberInfo = ctx.state?.[subscriberId] || subscriberConfig;
   return (
     <>
       <TopBar
-        header={`Equipment/${subscriberInfo.name ?? subscriberId}`}
+        header={`Subscriber/${subscriberInfo.name ?? subscriberId}`}
         tabs={
           !Object.keys(subscriberInfo).length
             ? [
@@ -165,19 +193,31 @@ export default function SubscriberDetail() {
 function StatusInfo() {
   const {match} = useRouter();
   const subscriberId: string = nullthrows(match.params.subscriberId);
+  const enqueueSnackbar = useEnqueueSnackbar();
+  const [refresh, setRefresh] = useState(false);
+  const ctx = useContext(SubscriberContext);
+  // $FlowIgnore
+  const subscriberInfo: subscriber = ctx.state?.[subscriberId];
   const networkId: string = nullthrows(match.params.networkId);
-
-  const ctx = useRefreshingContext({
+  const refreshingSessionState = useRefreshingContext({
     context: SubscriberContext,
-    networkId: networkId,
+    networkId,
     type: 'subscriber',
     interval: REFRESH_INTERVAL,
-    refresh: true,
+    enqueueSnackbar,
+    refresh,
     id: subscriberId,
   });
   // $FlowIgnore
-  const subscriberInfo: subscriber = ctx.state?.[subscriberId];
-
+  const sessions: subscriber_state = refreshingSessionState.sessionState;
+  function refreshFilter() {
+    return (
+      <AutorefreshCheckbox
+        autorefreshEnabled={refresh}
+        onToggle={() => setRefresh(current => !current)}
+      />
+    );
+  }
   return (
     <Grid container spacing={4}>
       <Grid item xs={12} md={6}>
@@ -185,8 +225,13 @@ function StatusInfo() {
         <Info subscriberInfo={subscriberInfo} />
       </Grid>
       <Grid item xs={12} md={6}>
-        <CardTitleRow icon={GraphicEqIcon} label="Status" />
-        <Status subscriberInfo={subscriberInfo} />
+        <CardTitleRow
+          icon={GraphicEqIcon}
+          label="Status"
+          filter={() => refreshFilter()}
+        />
+
+        <Status sessionState={sessions} subscriberInfo={subscriberInfo} />
       </Grid>
     </Grid>
   );
@@ -198,6 +243,7 @@ function Overview() {
   const subscriberId: string = nullthrows(match.params.subscriberId);
   const ctx = useContext(SubscriberContext);
   const subscriberInfo = ctx.state?.[subscriberId];
+
   if (!subscriberInfo) {
     return null;
   }
@@ -248,12 +294,17 @@ function Info(props: {subscriberInfo: subscriber}) {
 
   return <DataGrid data={kpiData} />;
 }
-
-function Status({subscriberInfo}: {subscriberInfo: subscriber}) {
+type statusProps = {
+  sessionState?: subscriber_state,
+  subscriberInfo: subscriber,
+};
+function Status(props: statusProps) {
   const featureUnsupported = 'Unsupported';
   const statusUnknown = 'Unknown';
+
   const gwId =
-    subscriberInfo?.state?.directory?.location_history?.[0] ?? statusUnknown;
+    // $FlowIgnore
+    props.sessionsState?.directory?.location_history?.[0] ?? statusUnknown;
 
   const kpiData: DataRows[] = [
     [
@@ -279,8 +330,9 @@ function Status({subscriberInfo}: {subscriberInfo: subscriber}) {
       },
       {
         category: 'UE Latency',
-        value: subscriberInfo.monitoring?.icmp?.latency_ms ?? statusUnknown,
-        unit: subscriberInfo.monitoring?.icmp?.latency_ms ? 'ms' : '',
+        value:
+          props.subscriberInfo.monitoring?.icmp?.latency_ms ?? statusUnknown,
+        unit: props.subscriberInfo.monitoring?.icmp?.latency_ms ? 'ms' : '',
         statusCircle: false,
       },
     ],

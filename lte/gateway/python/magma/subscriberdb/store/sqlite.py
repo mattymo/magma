@@ -17,13 +17,9 @@ from collections import defaultdict
 from contextlib import contextmanager
 
 from lte.protos.subscriberdb_pb2 import SubscriberData
-
 from magma.subscriberdb.sid import SIDUtils
-from .base import (
-    BaseStore,
-    DuplicateSubscriberError,
-    SubscriberNotFoundError,
-)
+
+from .base import BaseStore, DuplicateSubscriberError, SubscriberNotFoundError
 from .onready import OnDataReady
 
 class SqliteStore(BaseStore):

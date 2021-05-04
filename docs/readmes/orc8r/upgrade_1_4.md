@@ -23,8 +23,7 @@ documentation.
 
 If you are using local Terraform state (the default), ensure all Terraform
 state files are located in your working directory before proceeding. This means
- `terraform show` should list existing state, rather than outputting
- `No state`.
+`terraform show` should list existing state, rather than outputting `No state`.
 
 Now fetch the Kubernetes version that your cluster is running. If the AWS CLI
 is configured locally, run
@@ -46,12 +45,11 @@ Terraform module to point to this release's modules and bump chart and
 container versions
 
 ```hcl-terraform
-# this will likely be found in 'main.tf'
+# This will likely be found in main.tf
 
 module orc8r {
   source = "github.com/magma/magma//orc8r/cloud/deploy/terraform/orc8r-aws?ref=v1.4"
   # ...
-
   cluster_version = "1.17"   # set to Kubernetes version found above. 1.17 is used as an example here
 }
 
@@ -79,11 +77,23 @@ terraform refresh
 
 ## Terraform apply
 
+Terraform the upgrade. We'll also need to manually rescale the Prometheus
+deployment, as a workaround for quirks in how its deployment handles upgrading
+(for context, see [issue #4580](https://github.com/magma/magma/issues/4580)).
+
 Apply the upgrade
 
 ```bash
 terraform apply     # Check this output VERY carefully!
 ```
 
-After applying Terraform changes, all your application components should be
-upgraded.
+Once the above command indicates it's applying the Helm upgrade, switch to
+a separate terminal tab and manually scale the Prometheus deployment. You can
+re-run the Terraform command if it times out.
+
+```bash
+kubectl --namespace orc8r scale deployment orc8r-prometheus --replicas=0 && kubectl --namespace orc8r scale deployment orc8r-prometheus --replicas=1
+```
+
+After the Terraform command completes, all application components should be
+successfully upgraded.

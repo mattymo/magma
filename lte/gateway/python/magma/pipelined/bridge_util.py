@@ -11,11 +11,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import binascii
-from collections import defaultdict
-import re
 import logging
+import re
 import subprocess
-from typing import Optional, Dict, List, TYPE_CHECKING
+from collections import defaultdict
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 # Prevent circular import
 if TYPE_CHECKING:
@@ -155,6 +155,7 @@ class BridgeTools:
                           "other-config:disable-in-band=true"]).wait()
         subprocess.Popen(["ovs-vsctl", "set-controller", bridge_name,
                           "tcp:127.0.0.1:6633", "tcp:127.0.0.1:6654"]).wait()
+        subprocess.Popen(["ovs-vsctl", "set-manager", "ptcp:6640"]).wait()
         subprocess.Popen(["ifconfig", iface_name, "192.168.1.1/24"]).wait()
 
     @staticmethod

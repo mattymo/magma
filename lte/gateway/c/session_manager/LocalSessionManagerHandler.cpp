@@ -26,7 +26,7 @@ namespace magma {
 
 LocalSessionManagerHandlerImpl::LocalSessionManagerHandlerImpl(
     std::shared_ptr<LocalEnforcer> enforcer, SessionReporter* reporter,
-    std::shared_ptr<AsyncDirectorydClient> directoryd_client,
+    std::shared_ptr<DirectorydClient> directoryd_client,
     std::shared_ptr<EventsReporter> events_reporter,
     SessionStore& session_store)
     : session_store_(session_store),
@@ -47,11 +47,21 @@ void LocalSessionManagerHandlerImpl::ReportRuleStats(
     PrintGrpcMessage(
         static_cast<const google::protobuf::Message&>(request_cpy));
   }
-  MLOG(MDEBUG) << "Aggregating " << request_cpy.records_size() << " records";
   enforcer_->get_event_base().runInEventBaseThread([this, request_cpy]() {
+    if (!session_store_.is_ready()) {
+      // Since PipelineD reports a delta value for usage, this could lead to
+      // SessionD missing some usage if Redis becomes unavailable. However,
+      // since we usually only see this case on service restarts, we'll let this
+      // slide for now. Once we move to flat-rate reporting from PipelineD this
+      // will no longer be an issue.
+      MLOG(MINFO) << "SessionStore client is not yet ready... Ignoring this "
+                     "RuleRecordTable";
+      return;
+    }
     auto session_map = session_store_.read_all_sessions();
     SessionUpdate update =
         SessionStore::get_default_session_update(session_map);
+    MLOG(MDEBUG) << "Aggregating " << request_cpy.records_size() << " records";
     enforcer_->aggregate_records(session_map, request_cpy, update);
     check_usage_for_reporting(std::move(session_map), update);
   });
@@ -240,6 +250,15 @@ void LocalSessionManagerHandlerImpl::CreateSession(
               response_callback);
           return;
         }
+        if (!session_store_.is_ready()) {
+          MLOG(MINFO) << "Rejecting LocalCreateSessionRequest for " << imsi
+                      << " apn=" << cfg.common_context.apn()
+                      << " since SessionStore (Redis) is unavailable.";
+          send_local_create_session_response(
+              Status(grpc::UNAVAILABLE, "Storage backend is not available"),
+              session_id, response_callback);
+          return;
+        }
 
         auto session_map     = session_store_.read_sessions({imsi});
         const auto& rat_type = cfg.common_context.rat_type();
@@ -285,7 +304,7 @@ void LocalSessionManagerHandlerImpl::send_create_session(
         if (status.ok()) {
           MLOG(MINFO) << "Processing a CreateSessionResponse for "
                       << session_id;
-          enforcer_->init_session_credit(
+          enforcer_->init_session(
               *session_map_ptr, imsi, session_id, cfg, response);
           bool write_success = session_store_.create_sessions(
               imsi, std::move((*session_map_ptr)[imsi]));
@@ -407,9 +426,10 @@ void LocalSessionManagerHandlerImpl::handle_create_session_lte(
 void LocalSessionManagerHandlerImpl::send_local_create_session_response(
     Status status, const std::string& session_id,
     std::function<void(Status, LocalCreateSessionResponse)> response_callback) {
+  LocalCreateSessionResponse resp;
+  resp.set_session_id(session_id);
+  PrintGrpcMessage(static_cast<const google::protobuf::Message&>(resp));
   try {
-    LocalCreateSessionResponse resp;
-    resp.set_session_id(session_id);
     response_callback(status, resp);
   } catch (...) {
     std::exception_ptr ep = std::current_exception();
@@ -575,10 +595,7 @@ void LocalSessionManagerHandlerImpl::UpdateTunnelIds(
   enforcer_->get_event_base().runInEventBaseThread([this, request_cpy, imsi,
                                                     response_callback]() {
     auto session_map = session_store_.read_sessions({imsi});
-    SessionUpdate update =
-        SessionStore::get_default_session_update(session_map);
-    auto success =
-        enforcer_->update_tunnel_ids(session_map, request_cpy, update);
+    auto success     = enforcer_->update_tunnel_ids(session_map, request_cpy);
     if (!success) {
       MLOG(MDEBUG) << "Failed to UpdateTunnelIds for imsi " << imsi
                    << " and bearer " << request_cpy.bearer_id();

@@ -106,7 +106,7 @@ class TestAttachEnbRlf(unittest.TestCase):
         sec_ctxt = s1ap_types.TFW_CREATE_NEW_SECURITY_CONTEXT
         id_type = s1ap_types.TFW_MID_TYPE_IMSI
         eps_type = s1ap_types.TFW_EPS_ATTACH_TYPE_EPS_ATTACH
-        attach_req.ue_Id = 2
+        attach_req.ue_Id = 1
         attach_req.mIdType = id_type
         attach_req.epsAttachType = eps_type
         attach_req.useOldSecCtxt = sec_ctxt

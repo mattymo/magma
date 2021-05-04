@@ -13,6 +13,9 @@ If you want to install a specific release version, see the notes in the
 
 ## Prerequisites
 
+We assume `MAGMA_ROOT` is set as described in the
+[deployment intro](./deploy_intro.md).
+
 This walkthrough assumes you already have the following
 
 - a registered domain name
@@ -22,6 +25,9 @@ This walkthrough assumes you already have the following
 If your AWS account is not blank, this can cause errors while Terraforming.
 If you know what you're doing, this is fine - otherwise, consider signing up
 for a new account.
+
+Finally, our install process assumes the chosen region contains at least 3
+availability zones. This should be the case for all major regions.
 
 ## Assemble Certificates
 
@@ -47,10 +53,11 @@ in one file
 3. The root CA certificate which verifies your SSL certificate
 
 If you aren't worried about a browser warning, you can generate self-signed
-versions of these certs
+versions of these certs. Though please note that using trusted certs in
+production deployments is encouraged
 
 ```bash
-MAGMA_ROOT/orc8r/cloud/deploy/scripts/self_sign_certs.sh yourdomain.com
+${MAGMA_ROOT}/orc8r/cloud/deploy/scripts/self_sign_certs.sh yourdomain.com
 ```
 
 Alternatively, if you already have these certs, rename and move them as follows
@@ -64,7 +71,7 @@ Next, with the domain certs placed in the correct directory, generate the
 application certs
 
 ```bash
-MAGMA_ROOT/orc8r/cloud/deploy/scripts/create_application_certs.sh yourdomain.com
+${MAGMA_ROOT}/orc8r/cloud/deploy/scripts/create_application_certs.sh yourdomain.com
 ```
 
 NOTE: `yourdomain.com` above should match the relevant Terraform variables in
@@ -232,15 +239,15 @@ Create the Orchestrator admin user with the `admin_operator` certificate
 created earlier
 
 ```bash
-export ORC_POD=$(kubectl get pod -n orc8r -l app.kubernetes.io/component=orchestrator -o jsonpath='{.items[0].metadata.name}')
-kubectl -n orc8r exec ${ORC_POD} -- envdir /var/opt/magma/envdir /var/opt/magma/bin/accessc add-existing -admin -cert /var/opt/magma/certs/admin_operator.pem admin_operator
+export ORC_POD=$(kubectl --namespace orc8r get pod -l app.kubernetes.io/component=orchestrator -o jsonpath='{.items[0].metadata.name}')
+kubectl --namespace orc8r exec ${ORC_POD} -- /var/opt/magma/bin/accessc add-existing -admin -cert /var/opt/magma/certs/admin_operator.pem admin_operator
 ```
 
 If you want to verify the admin user was successfully created, inspect the
 output from
 
 ```bash
-$ kubectl -n orc8r exec ${ORC_POD} -- envdir /var/opt/magma/envdir /var/opt/magma/bin/accessc list-certs
+$ kubectl --namespace orc8r exec ${ORC_POD} -- /var/opt/magma/bin/accessc list-certs
 
 # NOTE: actual values will differ
 Serial Number: 83550F07322CEDCD; Identity: Id_Operator_admin_operator; Not Before: 2020-06-26 22:39:55 +0000 UTC; Not After: 2030-06-24 22:39:55 +0000 UTC
@@ -257,8 +264,8 @@ also need to add a new admin user with the updated `admin_operator` cert.
 Create an admin user for the `master` organization on the NMS
 
 ```bash
-export NMS_POD=$(kubectl -n orc8r get pod -l  app.kubernetes.io/component=magmalte -o jsonpath='{.items[0].metadata.name}')
-kubectl -n orc8r exec -it ${NMS_POD} -- yarn setAdminPassword master ADMIN_USER_EMAIL ADMIN_USER_PASSWORD
+export NMS_POD=$(kubectl --namespace orc8r get pod -l  app.kubernetes.io/component=magmalte -o jsonpath='{.items[0].metadata.name}')
+kubectl --namespace orc8r exec -it ${NMS_POD} -- yarn setAdminPassword master ADMIN_USER_EMAIL ADMIN_USER_PASSWORD
 ```
 
 ## DNS Resolution
@@ -319,7 +326,7 @@ will rightfully complain. Either ignore the browser warnings at your own risk
 ](https://stackoverflow.com/questions/7580508/getting-chrome-to-accept-self-signed-localhost-certificate).
 
 For interacting with the Orchestrator REST API, a good starting point is the
-Swagger UI available at `https://api.yoursubdomain.yourdomain.com/apidocs/v1/`.
+Swagger UI available at `https://api.yoursubdomain.yourdomain.com/swagger/v1/ui/`.
 
 If desired, you can also visit the AWS endpoints directly. The relevant
 services are `nginx-proxy` for NMS and `orc8r-nginx-proxy` for Orchestrator
@@ -327,7 +334,7 @@ API. Remember to include `https://`, as well as the port number for
 non-standard TLS ports.
 
 ```bash
-$ kubectl get services
+$ kubectl --namespace orc8r get services
 
 # NOTE: values will differ, e.g. the EXTERNAL-IP column
 NAME                            TYPE           CLUSTER-IP       EXTERNAL-IP                       PORT(S)                                                     AGE

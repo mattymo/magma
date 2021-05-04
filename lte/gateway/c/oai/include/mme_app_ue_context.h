@@ -86,9 +86,6 @@ uint64_t mme_app_imsi_to_u64(mme_app_imsi_t imsi_src);
 void mme_app_ue_context_uint_to_imsi(
     uint64_t imsi_src, mme_app_imsi_t* imsi_dst);
 
-void mme_app_convert_imsi_to_imsi_mme(
-    mme_app_imsi_t* imsi_dst, const imsi_t* imsi_src);
-
 mme_ue_s1ap_id_t mme_app_ctx_get_new_ue_id(
     mme_ue_s1ap_id_t* mme_app_ue_s1ap_id_generator_p);
 
@@ -242,6 +239,7 @@ typedef struct pdn_context_s {
 
   protocol_configuration_options_t* pco;
   bool ue_rej_act_def_ber_req;
+  bool route_s11_messages_to_s8_task;
 } pdn_context_t;
 
 typedef enum {
@@ -460,6 +458,7 @@ typedef struct ue_mm_context_s {
   network_access_mode_t network_access_mode;
 
   bool path_switch_req;
+  bool erab_mod_ind;
   /* Storing activate_dedicated_bearer_req messages received
    * when UE is in ECM_IDLE state*/
   emm_cn_activate_dedicated_bearer_req_t* pending_ded_ber_req[BEARERS_PER_UE];
@@ -480,7 +479,7 @@ typedef struct mme_ue_context_s {
  *exists
  **/
 ue_mm_context_t* mme_ue_context_exists_imsi(
-    mme_ue_context_t* const mme_ue_context, const imsi64_t imsi);
+    mme_ue_context_t* const mme_ue_context, imsi64_t imsi);
 
 /** \brief Retrieve an UE context by selecting the provided S11 teid
  * \param teid The tunnel endpoint identifier used between MME and S-GW
@@ -546,7 +545,7 @@ void mme_ue_context_update_coll_keys(
     mme_ue_context_t* const mme_ue_context_p,
     ue_mm_context_t* const ue_context_p,
     const enb_s1ap_id_key_t enb_s1ap_id_key,
-    const mme_ue_s1ap_id_t mme_ue_s1ap_id, const imsi64_t imsi,
+    const mme_ue_s1ap_id_t mme_ue_s1ap_id, imsi64_t imsi,
     const s11_teid_t mme_s11_teid, const guti_t* const guti_p);
 
 /** \brief dump MME associative collections

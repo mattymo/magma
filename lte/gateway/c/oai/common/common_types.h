@@ -53,6 +53,7 @@
 //------------------------------------------------------------------------------
 typedef uint16_t sctp_stream_id_t;
 typedef uint32_t sctp_assoc_id_t;
+typedef uint32_t sctp_ppid_t;
 typedef uint64_t enb_s1ap_id_key_t;
 #define MME_APP_ENB_S1AP_ID_KEY(kEy, eNb_Id, eNb_Ue_S1Ap_Id)                   \
   do {                                                                         \
@@ -96,7 +97,9 @@ typedef teid_t s1u_teid_t;
 // IMSI
 
 typedef uint64_t imsi64_t;
+typedef uint64_t imei64_t;
 #define IMSI_64_FMT "%" SCNu64
+#define IMEI_64_FMT "%" SCNu64
 #define IMSI_64_FMT_DYN_LEN "%.*lu"
 #define INVALID_IMSI64 (imsi64_t) 0
 

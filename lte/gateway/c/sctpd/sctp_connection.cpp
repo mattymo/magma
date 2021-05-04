@@ -119,9 +119,7 @@ void SctpConnection::Listen() {
       case 0: {  // timed out
         continue;
       }
-      default: {
-        break;
-      }
+      default: { break; }
     }
 
     for (int i = 0; i < num_events; i++) {
@@ -225,7 +223,8 @@ SctpStatus SctpConnection::HandleClientSock(int sd) {
                  << std::to_string(sinfo.sinfo_stream);
 
     _handler.HandleRecv(
-        sinfo.sinfo_assoc_id, sinfo.sinfo_stream, std::string(msg, n));
+        ntohl(sinfo.sinfo_ppid), sinfo.sinfo_assoc_id, sinfo.sinfo_stream,
+        std::string(msg, n));
 
     return SctpStatus::OK;
   }
@@ -268,7 +267,7 @@ SctpStatus SctpConnection::HandleComUp(
   pull_peer_ipaddr(sd, change->sac_assoc_id, ran_cp_ipaddr);
 
   if (_handler.HandleNewAssoc(
-          change->sac_assoc_id, change->sac_inbound_streams,
+          assoc.ppid, change->sac_assoc_id, change->sac_inbound_streams,
           change->sac_outbound_streams, ran_cp_ipaddr) < 0) {
     _sctp_desc.delAssoc(assoc.assoc_id);
     return SctpStatus::NEW_ASSOC_NOTIF_FAILED;
@@ -283,7 +282,7 @@ SctpStatus SctpConnection::HandleComDown(uint32_t assoc_id) {
 
   _sctp_desc.delAssoc(assoc_id);
 
-  _handler.HandleCloseAssoc(assoc_id, false);
+  _handler.HandleCloseAssoc(_ppid, assoc_id, false);
 
   return SctpStatus::DISCONNECT;
 }
@@ -291,7 +290,7 @@ SctpStatus SctpConnection::HandleComDown(uint32_t assoc_id) {
 SctpStatus SctpConnection::HandleReset(uint32_t assoc_id) {
   MLOG(MDEBUG) << "Handling sctp reset";
 
-  _handler.HandleCloseAssoc(assoc_id, true);
+  _handler.HandleCloseAssoc(_ppid, assoc_id, true);
 
   return SctpStatus::OK;
 }
